@@ -3,9 +3,7 @@ variable "github_repositories" {
   type        = set(string)
 
   default = [
-    "flyflow-engine-core",
-    "flyflow-engine-api",
-    "flyflow-engine-worker",
+    "auth-service"
   ]
 }
 
