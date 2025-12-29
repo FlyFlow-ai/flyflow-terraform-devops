@@ -8,10 +8,6 @@ terraform {
       source  = "kreuzwerker/docker"
       version = "3.0.1"
     }
-    github = {
-      source  = "integrations/github"
-      version = "6.2.2"
-    }
   }
   backend "s3" {
     bucket         = "flyflow-tfstate"
@@ -28,10 +24,9 @@ locals {
 }
 
 
-
-key_ssm_name = "/key_pairs/aws_flyflow/public_key"
-ssh_key_name = "aws_flyflow_generated"
-env          = "staging"
-provider "github" {
-  token = aws_ssm_parameter.github_token.value
+module "devops" {
+  source       = "./terraform"
+  key_ssm_name = "/key_pairs/aws_flyflow/public_key"
+  ssh_key_name = "aws_flyflow_generated"
+  env          = "staging"
 }
