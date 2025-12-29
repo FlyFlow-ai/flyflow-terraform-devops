@@ -25,7 +25,7 @@ locals {
 
 
 module "devops" {
-  source       = "./devops"
+  source       = "terraform"
   key_ssm_name = "/key_pairs/aws_flyflow/public_key"
   ssh_key_name = "aws_flyflow_generated"
   env          = "staging"
