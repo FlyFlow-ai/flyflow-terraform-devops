@@ -28,13 +28,10 @@ locals {
 }
 
 
-module "devops" {
-  source       = ""
-  key_ssm_name = "/key_pairs/aws_flyflow/public_key"
-  ssh_key_name = "aws_flyflow_generated"
-  env          = "staging"
-}
 
+key_ssm_name = "/key_pairs/aws_flyflow/public_key"
+ssh_key_name = "aws_flyflow_generated"
+env          = "staging"
 provider "github" {
   token = aws_ssm_parameter.github_token.value
 }
