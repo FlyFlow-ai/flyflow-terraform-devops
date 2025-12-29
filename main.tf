@@ -13,7 +13,7 @@ terraform {
     bucket         = "flyflow-tfstate"
     key            = "infra2.0/subaccounts/feature/flyflow-terraform-main/flyflow-terraform-main.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "tfstate-locking-new"
+    dynamodb_table = "tfstate-locking"
     profile        = "sandbox_hydra"
   }
 }
