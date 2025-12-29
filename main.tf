@@ -13,7 +13,7 @@ terraform {
     bucket         = "flyflow-tfstate"
     key            = "infra2.0/subaccounts/feature/flyflow-terraform-main/flyflow-terraform-main.tfstate"
     region         = "us-east-1"
-    dynamodb_table = "tfstate-locking"
+    dynamodb_table = "tfstate-locking-new"
     profile        = "sandbox_hydra"
   }
 }
@@ -25,7 +25,7 @@ locals {
 
 
 module "devops" {
-  source       = ""
+  source       = "terraform"
   key_ssm_name = "/key_pairs/aws_flyflow/public_key"
   ssh_key_name = "aws_flyflow_generated"
   env          = "staging"
