@@ -19,11 +19,6 @@ jobs:
       )
     runs-on: ubuntu-latest
 
-    # If your terraform code is in a folder, uncomment this:
-    # defaults:
-    #   run:
-    #     working-directory: terraform
-
     steps:
       - name: Checkout PR code (merge commit)
         uses: actions/checkout@v4
