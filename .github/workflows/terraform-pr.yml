@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
   pull-requests: write
-  id-token: write
+  issues: write   # needed to comment on PR (PRs are issues in GitHub API)
 
 jobs:
   terraform:
@@ -19,34 +19,138 @@ jobs:
       )
     runs-on: ubuntu-latest
 
-
     steps:
-      - name: Checkout PR code
+      - name: Checkout PR code (merge commit)
         uses: actions/checkout@v4
         with:
           ref: refs/pull/${{ github.event.issue.number }}/merge
+          fetch-depth: 0
 
       - name: Setup Terraform
         uses: hashicorp/setup-terraform@v3
         with:
           terraform_version: 1.6.6
 
-      # ---- AWS AUTH (OIDC) ----
-      - name: Configure AWS credentials
+      - name: Configure AWS credentials (AWS keys from GitHub Secrets)
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           aws-region: ${{ secrets.AWS_REGION }}
 
-
       - name: Terraform Init
+        shell: bash
         run: terraform init
 
+      # --------------------
+      # PLAN (captures output + exit code)
+      # --------------------
       - name: Terraform Plan
+        id: tfplan
         if: contains(github.event.comment.body, '/terraform plan')
-        run: terraform plan
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          echo "Running terraform plan..."
+          terraform plan -no-color -detailed-exitcode -out=tfplan 2>&1 | tee plan_raw.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
 
+          # If plan produced a plan file, render it nicely
+          if [ -f tfplan ]; then
+            terraform show -no-color tfplan | tee plan.txt
+          else
+            # fallback
+            cp plan_raw.txt plan.txt
+          fi
+
+      - name: Comment PLAN result on PR
+        if: always() && contains(github.event.comment.body, '/terraform plan')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const prNumber = context.payload.issue.number;
+            const exitCode = Number(`${{ steps.tfplan.outputs.exit_code || 1 }}`);
+
+            let status = '❌ Failed';
+            let extra = '';
+            if (exitCode === 0) { status = '✅ Succeeded'; extra = 'No changes.'; }
+            if (exitCode === 2) { status = '✅ Succeeded'; extra = 'Changes detected.'; }
+            if (exitCode === 1) { status = '❌ Failed'; }
+
+            let body = '';
+            try { body = fs.readFileSync('plan.txt', 'utf8'); } catch (e) { body = '(No plan output file found)'; }
+
+            // GitHub comment limit ~65536 chars – keep margin
+            const max = 60000;
+            if (body.length > max) body = body.slice(0, max) + '\n\n...(truncated)...';
+
+            const comment = [
+              `### Terraform Plan ${status}`,
+              extra ? `**Result:** ${extra}` : '',
+              `<details><summary>Show plan output</summary>\n\n\`\`\`\n${body}\n\`\`\`\n</details>`
+            ].filter(Boolean).join('\n\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
+
+      # --------------------
+      # APPLY (captures output + exit code)
+      # --------------------
       - name: Terraform Apply
+        id: tfapply
         if: contains(github.event.comment.body, '/terraform apply')
-        run: terraform apply -auto-approve
+        continue-on-error: true
+        shell: bash
+        run: |
+          set -o pipefail
+          echo "Running terraform apply..."
+          terraform apply -no-color -auto-approve 2>&1 | tee apply.txt
+          echo "exit_code=${PIPESTATUS[0]}" >> "$GITHUB_OUTPUT"
+
+      - name: Comment APPLY result on PR
+        if: always() && contains(github.event.comment.body, '/terraform apply')
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('fs');
+
+            const prNumber = context.payload.issue.number;
+            const exitCode = Number(`${{ steps.tfapply.outputs.exit_code || 1 }}`);
+            const status = exitCode === 0 ? '✅ Succeeded' : '❌ Failed';
+
+            let body = '';
+            try { body = fs.readFileSync('apply.txt', 'utf8'); } catch (e) { body = '(No apply output file found)'; }
+
+            const max = 60000;
+            if (body.length > max) body = body.slice(0, max) + '\n\n...(truncated)...';
+
+            const comment = [
+              `### Terraform Apply ${status}`,
+              `<details><summary>Show apply output</summary>\n\n\`\`\`\n${body}\n\`\`\`\n</details>`
+            ].join('\n\n');
+
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              body: comment
+            });
+
+      # Optional: fail the job at the end if plan/apply failed (so the check is red)
+      - name: Fail job if PLAN/APPLY failed
+        if: always()
+        shell: bash
+        run: |
+          PLAN="${{ steps.tfplan.outputs.exit_code }}"
+          APPLY="${{ steps.tfapply.outputs.exit_code }}"
+
+          # only fail if a command actually ran and exit_code is 1
+          if [ -n "$PLAN" ] && [ "$PLAN" = "1" ]; then exit 1; fi
+          if [ -n "$APPLY" ] && [ "$APPLY" = "1" ]; then exit 1; fi
