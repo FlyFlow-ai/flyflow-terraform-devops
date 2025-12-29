@@ -1,5 +1,5 @@
-module "ecs_ec2" {
-  source = "flyflow/ec2/aws"
+module "ec2" {
+  source = "app.terraform.io/FlyFlow/ec2/aws"
   version = "~> 1.0"
 
   vpc_id        = "vpc-0d875e56be488e3e5"
@@ -35,5 +35,13 @@ EOF
   storage = {
     root_volume_size      = 30
     delete_on_termination = true
+  }
+}
+resource "aws_ecs_cluster" "this" {
+  name = "flyflow-ecs-staging"
+
+  setting {
+    name  = "containerInsights"
+    value = "enabled"
   }
 }
