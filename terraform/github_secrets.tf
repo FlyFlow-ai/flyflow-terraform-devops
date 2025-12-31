@@ -3,7 +3,8 @@ variable "github_repositories" {
   type        = set(string)
 
   default = [
-    "auth-service"
+    "auth-service",
+    "flyflow-terraform-apps"
   ]
 }
 
